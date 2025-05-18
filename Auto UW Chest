@@ -251,7 +251,6 @@ if chests then
             if success then
                 local prompt = targetPart:FindFirstChildOfClass("ProximityPrompt")
                 if prompt then
-                    task.wait(0.1)
                     prompt:InputHoldBegin()
                     prompt:InputHoldEnd()
                     task.wait(player:GetNetworkPing() * 5)
