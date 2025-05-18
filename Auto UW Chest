@@ -1,0 +1,272 @@
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local player = Players.LocalPlayer
+local backpack = player:WaitForChild("Backpack")
+local bin = player:WaitForChild("bin")
+local airValue = bin:WaitForChild("Air")
+local toolActionRemote = ReplicatedStorage:WaitForChild("RS"):WaitForChild("Remotes"):WaitForChild("Misc"):WaitForChild("ToolAction")
+
+-- Please work big noob rahh!!!
+local function getAliveCharacter()
+    local char = player.Character
+    local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+    while not char or not humanoid or humanoid.Health <= 0 do
+        player.CharacterAdded:Wait()
+        char = player.Character
+        humanoid = char and char:FindFirstChildOfClass("Humanoid")
+        task.wait(0.1)
+    end
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    return char, humanoid, hrp
+end
+
+local character, humanoid, humanoidRootPart = getAliveCharacter()
+
+-- Anti-AFK
+local vu = game:GetService("VirtualUser")
+player.Idled:Connect(function()
+    vu:Button2Down(Vector2.zero, workspace.CurrentCamera.CFrame)
+    task.wait(1)
+    vu:Button2Up(Vector2.zero, workspace.CurrentCamera.CFrame)
+end)
+
+-- Auto Eat (Fix Later)
+local toolNames = {"Red apple", "Banana", "Grapes", "Orange", "Green apple"}
+task.spawn(function()
+    while true do
+        for _, name in ipairs(toolNames) do
+            local tool = backpack:FindFirstChild(name)
+            if tool then
+                toolActionRemote:FireServer(tool)
+            end
+        end
+        task.wait(60)
+    end
+end)
+
+for _, name in ipairs({"Enemies", "Effects"}) do
+    local folder = Workspace:FindFirstChild(name)
+    if folder then folder:Destroy() end
+end
+
+local map = Workspace:FindFirstChild("Map")
+if map then
+    local weather = map:FindFirstChild("Weather")
+    if weather then weather:Destroy() end
+end
+
+-- Noclip
+local Clip = false
+local NoclipConnection
+local function noclip()
+    NoclipConnection = RunService.Stepped:Connect(function()
+        if not Clip and character then
+            for _, part in pairs(character:GetDescendants()) do
+                if part:IsA("BasePart") and part.CanCollide and part.Name ~= "floatName" then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
+end
+
+local function clip()
+    if NoclipConnection then NoclipConnection:Disconnect() end
+    Clip = true
+end
+
+noclip()
+
+-- Fly (Fixed)
+local speed = 50
+local control = {F = 0, B = 0, L = 0, R = 0}
+local bodyGyro, bodyVelocity
+
+UserInputService.InputBegan:Connect(function(input, processed)
+    if not processed then
+        if input.KeyCode == Enum.KeyCode.W then control.F = 1 end
+        if input.KeyCode == Enum.KeyCode.S then control.B = -1 end
+        if input.KeyCode == Enum.KeyCode.A then control.L = -1 end
+        if input.KeyCode == Enum.KeyCode.D then control.R = 1 end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.W then control.F = 0 end
+    if input.KeyCode == Enum.KeyCode.S then control.B = 0 end
+    if input.KeyCode == Enum.KeyCode.A then control.L = 0 end
+    if input.KeyCode == Enum.KeyCode.D then control.R = 0 end
+end)
+
+local function startFlying()
+    bodyGyro = Instance.new("BodyGyro", humanoidRootPart)
+    bodyGyro.P = 9e4
+    bodyGyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+    bodyGyro.CFrame = humanoidRootPart.CFrame
+
+    bodyVelocity = Instance.new("BodyVelocity", humanoidRootPart)
+    bodyVelocity.Velocity = Vector3.zero
+    bodyVelocity.maxForce = Vector3.new(9e9, 9e9, 9e9)
+
+    RunService:BindToRenderStep("Flying", Enum.RenderPriority.Input.Value, function()
+        local camera = workspace.CurrentCamera
+        local move = (camera.CFrame.RightVector * (control.R + control.L) + camera.CFrame.LookVector * (control.F + control.B))
+        move = Vector3.new(move.X, 0, move.Z)
+
+        if move.Magnitude > 0 then
+            move = move.Unit * speed
+        else
+            move = Vector3.zero
+        end
+
+        bodyVelocity.Velocity = move
+        bodyGyro.CFrame = camera.CFrame
+    end)
+end
+
+startFlying()
+
+local function returnToSurface()
+    local surfacePos = Vector3.new(humanoidRootPart.Position.X, 415, humanoidRootPart.Position.Z)
+    local distance = (humanoidRootPart.Position - surfacePos).Magnitude
+    local tween = TweenService:Create(humanoidRootPart, TweenInfo.new(distance / 100, Enum.EasingStyle.Linear), {CFrame = CFrame.new(surfacePos)})
+    tween:Play()
+    tween.Completed:Wait()
+end
+
+local function tweenToPosition(targetPos, speed)
+    if airValue.Value < 10 then
+        returnToSurface()
+        repeat task.wait(1) until airValue.Value >= 100
+    end
+
+    local distance = (humanoidRootPart.Position - targetPos).Magnitude
+    local tween = TweenService:Create(humanoidRootPart, TweenInfo.new(distance / speed, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPos)})
+    local completed = false
+    tween.Completed:Connect(function() completed = true end)
+    tween:Play()
+
+    while not completed do
+        if airValue.Value < 10 then
+            tween:Cancel()
+            returnToSurface()
+            repeat task.wait(1) until airValue.Value >= 100
+            return false
+        end
+        task.wait()
+    end
+
+    return true
+end
+
+local function findNearestSpot()
+    local seaContent = map and map:FindFirstChild("SeaContent")
+    if not seaContent then return end
+
+    local validNames = {["DivingSpot"] = true, ["ObolusSpot"] = true, ["UWStructure"] = true}
+    local closest, shortest = nil, math.huge
+
+    for _, model in ipairs(seaContent:GetChildren()) do
+        if validNames[model.Name] and model:IsA("Model") and model:FindFirstChild("Base") then
+            local dist = (humanoidRootPart.Position - model.Base.Position).Magnitude
+            if dist < shortest then
+                shortest = dist
+                closest = model
+            end
+        end
+    end
+
+    return closest
+end
+
+while true do
+    -- PLEASE WORK!!!
+    if not character or not character.Parent or not humanoid or humanoid.Health <= 0 then
+        character, humanoid, humanoidRootPart = getAliveCharacter()
+
+		task.wait(20)
+
+        if bodyGyro then bodyGyro:Destroy() end
+        if bodyVelocity then bodyVelocity:Destroy() end
+        startFlying()
+    end
+
+    tweenToPosition(Vector3.new(humanoidRootPart.Position.X, 415, humanoidRootPart.Position.Z), 200)
+
+    local spot = findNearestSpot()
+    if not spot then task.wait(1) continue end
+
+    local base = spot:FindFirstChild("Base")
+    if not base then task.wait(1) continue end
+
+    local surfacePos = Vector3.new(base.Position.X, 415, base.Position.Z)
+    -- (300 studs = 1 second)
+	local teleportDistance = (humanoidRootPart.Position - surfacePos).Magnitude
+	local waitTime = teleportDistance / 300
+	task.wait(waitTime)
+
+	humanoidRootPart.CFrame = CFrame.new(surfacePos)
+
+
+	local details = spot:WaitForChild("Details", 10)
+	if details then
+    	details:Destroy()
+	end
+
+local chests = spot:FindFirstChild("Chests")
+if chests then
+    while true do
+        local chestBases = {}
+        for _, chest in ipairs(chests:GetChildren()) do
+            if chest:IsA("Model") and chest:FindFirstChild("Base") and not chest:FindFirstChild("Open") then
+                table.insert(chestBases, chest.Base)
+            end
+        end
+
+        if #chestBases == 0 then
+            break
+        end
+
+        local nearestIndex, nearestDist = nil, math.huge
+        for i, basePart in ipairs(chestBases) do
+            local dist = (humanoidRootPart.Position - basePart.Position).Magnitude
+            if dist < nearestDist then
+                nearestDist = dist
+                nearestIndex = i
+            end
+        end
+
+        if nearestIndex then
+            local targetPart = chestBases[nearestIndex]
+            local success = tweenToPosition(targetPart.Position, 80)
+            if success then
+                local prompt = targetPart:FindFirstChildOfClass("ProximityPrompt")
+                if prompt then
+                    task.wait(0.1)
+                    prompt:InputHoldBegin()
+                    prompt:InputHoldEnd()
+                    task.wait(player:GetNetworkPing() * 5)
+                end
+            end
+        else
+            break
+        end
+
+        task.wait(0.1)
+    end
+end
+
+
+    local originalName = spot.Name
+    spot.Name = "None"
+    task.delay(1200, function()
+        if spot and spot.Parent and spot.Name == "None" then
+            spot.Name = originalName
+        end
+    end)
+end
