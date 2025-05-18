@@ -27,8 +27,6 @@ end
 
 local character, humanoid, humanoidRootPart = getAliveCharacter()
 
-player.CameraMaxZoomDistance = 5
-
 -- Anti-AFK
 local vu = game:GetService("VirtualUser")
 player.Idled:Connect(function()
@@ -195,7 +193,6 @@ while true do
 
         if bodyGyro then bodyGyro:Destroy() end
         if bodyVelocity then bodyVelocity:Destroy() end
-		player.CameraMaxZoomDistance = 5
         startFlying()
     end
 
@@ -208,9 +205,9 @@ while true do
     if not base then task.wait(1) continue end
 
     local surfacePos = Vector3.new(base.Position.X, 415, base.Position.Z)
-    -- (300 studs = 1 second)
+    -- (200 studs = 1 second)
 	local teleportDistance = (humanoidRootPart.Position - surfacePos).Magnitude
-	local waitTime = teleportDistance / 300
+	local waitTime = teleportDistance / 250
 	task.wait(waitTime)
 
 	humanoidRootPart.CFrame = CFrame.new(surfacePos)
@@ -246,7 +243,7 @@ if chests then
 
         if nearestIndex then
             local targetPart = chestBases[nearestIndex]
-            local success = tweenToPosition(targetPart.Position, 80)
+            local success = tweenToPosition(targetPart.Position, 60)
             if success then
                 local prompt = targetPart:FindFirstChildOfClass("ProximityPrompt")
                 if prompt then
