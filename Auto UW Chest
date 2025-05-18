@@ -1,5 +1,4 @@
 local TweenService = game:GetService("TweenService")
-local camera = workspace.CurrentCamera
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -28,7 +27,7 @@ end
 
 local character, humanoid, humanoidRootPart = getAliveCharacter()
 
-camera.CameraMaxZoomDistance = 10
+player.CameraMaxZoomDistance = 5
 
 -- Anti-AFK
 local vu = game:GetService("VirtualUser")
@@ -196,7 +195,7 @@ while true do
 
         if bodyGyro then bodyGyro:Destroy() end
         if bodyVelocity then bodyVelocity:Destroy() end
-		camera.CameraMaxZoomDistance = 10
+		player.CameraMaxZoomDistance = 5
         startFlying()
     end
 
@@ -251,6 +250,7 @@ if chests then
             if success then
                 local prompt = targetPart:FindFirstChildOfClass("ProximityPrompt")
                 if prompt then
+                    task.wait(0.1)
                     prompt:InputHoldBegin()
                     prompt:InputHoldEnd()
                     task.wait(player:GetNetworkPing() * 5)
