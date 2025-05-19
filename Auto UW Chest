@@ -213,49 +213,54 @@ while true do
 	humanoidRootPart.CFrame = CFrame.new(surfacePos)
 
 
-	local details = spot:WaitForChild("Details", 10)
-	if details then
-    	details:Destroy()
-	end
+local details = spot:FindFirstChild("Details", 10)
+if details then
+    details:Destroy()
+else
+    local originalName = spot.Name
+    spot.Name = "None"
+    task.delay(1200, function()
+        if spot and spot.Parent and spot.Name == "None" then
+            spot.Name = originalName
+        end
+    end)
+end
 
 local chests = spot:FindFirstChild("Chests")
 if chests then
     while true do
-        local chestBases = {}
-        for _, chest in ipairs(chests:GetChildren()) do
-            if chest:IsA("Model") and chest:FindFirstChild("Base") and not chest:FindFirstChild("Open") then
-                table.insert(chestBases, chest.Base)
-            end
-        end
+local chestModels = {}
+for _, chest in ipairs(chests:GetChildren()) do
+    if chest:IsA("Model") and chest:FindFirstChild("Base") and not chest:FindFirstChild("Open") then
+        table.insert(chestModels, chest)
+    end
+end
 
-        if #chestBases == 0 then
-            break
-        end
+if #chestModels == 0 then
+    break
+end
 
-        local nearestIndex, nearestDist = nil, math.huge
-        for i, basePart in ipairs(chestBases) do
-            local dist = (humanoidRootPart.Position - basePart.Position).Magnitude
-            if dist < nearestDist then
-                nearestDist = dist
-                nearestIndex = i
-            end
-        end
+local nearestChest, nearestDist = nil, math.huge
+for _, chest in ipairs(chestModels) do
+    local dist = (humanoidRootPart.Position - chest.Base.Position).Magnitude
+    if dist < nearestDist then
+        nearestDist = dist
+        nearestChest = chest
+    end
+end
 
-        if nearestIndex then
-            local targetPart = chestBases[nearestIndex]
-            local success = tweenToPosition(targetPart.Position, 60)
-            if success then
-                local prompt = targetPart:FindFirstChildOfClass("ProximityPrompt")
-                if prompt then
-                    task.wait(0.1)
-                    prompt:InputHoldBegin()
-                    prompt:InputHoldEnd()
-                    task.wait(player:GetNetworkPing() * 5)
-                end
-            end
-        else
-            break
-        end
+if nearestChest then
+    local success = tweenToPosition(nearestChest.Base.Position, 60)
+    if success then
+        local openChestRemote = ReplicatedStorage.RS.Remotes.Misc:FindFirstChild("OpenChest")
+        if openChestRemote then
+            openChestRemote:FireServer(nearestChest) -- pass the whole chest model
+            task.wait(0.1)
+     		   end
+    		end
+			else
+   		 break
+		end
 
         task.wait(0.1)
     end
